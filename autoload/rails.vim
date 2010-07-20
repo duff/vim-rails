@@ -708,6 +708,8 @@ function! s:readable_calculate_file_type() dict abort
     let r = "test"
   elseif f =~ '\<spec/.*_spec\.rb'
     let r = "spec"
+  elseif f =~ '\<spec/support/.*\.rb'
+    let r = "spec"
   elseif f =~ '\<db/migrate\>'
     let r = "db-migration"
   elseif f=~ '\<db/schema\.rb$'
@@ -716,7 +718,7 @@ function! s:readable_calculate_file_type() dict abort
     let r = "task"
   elseif f =~ '\<log/.*\.log$'
     let r = "log"
-  elseif e == "css" || e == "sass" || e == "less"
+  elseif e == "css" || e =~ "s[ac]ss" || e == "less"
     let r = "stylesheet-".e
   elseif e == "js"
     let r = "javascript"
@@ -1351,7 +1353,7 @@ function! s:readable_preview_urls(lnum) dict abort
     let url += [self.getvar('rails_preview')]
   end
   if self.name() =~ '^public/stylesheets/sass/'
-    let urls = urls + [s:sub(s:sub(self.name(),'^public/stylesheets/sass/','/stylesheets/'),'\.sass$','.css')]
+    let urls = urls + [s:sub(s:sub(self.name(),'^public/stylesheets/sass/','/stylesheets/'),'\.s[ac]ss$','.css')]
   elseif self.name() =~ '^public/'
     let urls = urls + [s:sub(self.name(),'^public','')]
   elseif self.name() =~ '^app/stylesheets/'
@@ -2624,6 +2626,8 @@ function! s:stylesheetEdit(cmd,...)
   let name = a:0 ? a:1 : s:controller(1)
   if rails#app().has('sass') && rails#app().has_file('public/stylesheets/sass/'.name.'.sass')
     return s:EditSimpleRb(a:cmd,"stylesheet",name,"public/stylesheets/sass/",".sass",1)
+  elseif rails#app().has('sass') && rails#app().has_file('public/stylesheets/sass/'.name.'.scss')
+    return s:EditSimpleRb(a:cmd,"stylesheet",name,"public/stylesheets/sass/",".scss",1)
   elseif rails#app().has('lesscss') && rails#app().has_file('app/stylesheets/'.name.'.less')
     return s:EditSimpleRb(a:cmd,"stylesheet",name,"app/stylesheets/",".less",1)
   else
@@ -3537,7 +3541,7 @@ function! s:BufSyntax()
           syn keyword rubyRailsTestControllerMethod assert_response assert_redirected_to assert_template assert_recognizes assert_generates assert_routing assert_dom_equal assert_dom_not_equal assert_select assert_select_rjs assert_select_encoded assert_select_email assert_tag assert_no_tag
         endif
       elseif buffer.type_name('spec')
-        syn keyword rubyRailsTestMethod describe context it its specify it_should_behave_like before after subject fixtures controller_name helper_name
+        syn keyword rubyRailsTestMethod describe context it its specify shared_examples_for it_should_behave_like let before after subject fixtures controller_name helper_name
         syn keyword rubyRailsTestMethod violated pending expect double mock mock_model stub_model
         syn match rubyRailsTestMethod '\.\@<!\<stub\>!\@!'
         if !buffer.type_name('spec-model')
@@ -4481,6 +4485,8 @@ function! RailsBufInit(path)
     setlocal filetype=haml
   elseif &ft =~ '^\%(sass\|conf\)\=$' && expand("%:e") == "sass"
     setlocal filetype=sass
+  elseif &ft =~ '^\%(scss\|conf\)\=$' && expand("%:e") == "scss"
+    setlocal filetype=scss
   elseif &ft =~ '^\%(lesscss\|conf\)\=$' && expand("%:e") == "less"
     setlocal filetype=lesscss
   elseif &ft =~ '^\%(dryml\)\=$' && expand("%:e") == "dryml"
@@ -4587,7 +4593,7 @@ function! s:BufSettings()
   call self.setvar('&includeexpr','RailsIncludeexpr()')
   call self.setvar('&suffixesadd', ".rb,.".s:gsub(s:view_types,',',',.').",.css,.js,.yml,.csv,.rake,.sql,.html,.xml")
   let ft = self.getvar('&filetype')
-  if ft =~ '^\%(e\=ruby\|[yh]aml\|javascript\|css\|sass\|lesscss\)$'
+  if ft =~ '^\%(e\=ruby\|[yh]aml\|javascript\|css\|s[ac]ss\|lesscss\)$'
     call self.setvar('&shiftwidth',2)
     call self.setvar('&softtabstop',2)
     call self.setvar('&expandtab',1)
