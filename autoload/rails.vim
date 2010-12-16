@@ -6,7 +6,7 @@
 if exists('g:autoloaded_rails') || &cp
   finish
 endif
-let g:autoloaded_rails = '4.2'
+let g:autoloaded_rails = '4.3'
 
 let s:cpo_save = &cpo
 set cpo&vim
@@ -42,6 +42,20 @@ endfunction
 
 function! s:compact(ary)
   return s:sub(s:sub(s:gsub(a:ary,'\n\n+','\n'),'\n$',''),'^\n','')
+endfunction
+
+function! s:uniq(list)
+  let seen = {}
+  let i = 0
+  while i < len(a:list)
+    if has_key(seen,a:list[i])
+      call remove(a:list, i)
+    else
+      let seen[a:list[i]] = 1
+      let i += 1
+    endif
+  endwhile
+  return a:list
 endfunction
 
 function! s:scrub(collection,item)
@@ -510,7 +524,7 @@ function! rails#singularize(word)
     return word
   endif
   let word = s:sub(word,'eople$','ersons')
-  let word = s:sub(word,'[aeio]@<!ies$','ys')
+  let word = s:sub(word,'%([Mm]ov|[aeio])@<!ies$','ys')
   let word = s:sub(word,'xe[ns]$','xs')
   let word = s:sub(word,'ves$','fs')
   let word = s:sub(word,'ss%(es)=$','sss')
@@ -1170,7 +1184,7 @@ function! s:Rake(bang,lnum,arg)
       if !a:bang
         cwindow
       endif
-    elseif arg =~# '^\%(stats\|routes\|secret\|time:zones\|db:\%(charset\|collation\|fixtures:identify\>.*\|version\)\)\%([: ]\|$\)'
+    elseif arg =~# '^\%(stats\|routes\|secret\|time:zones\|db:\%(charset\|collation\|fixtures:identify\>.*\|migrate:status\|version\)\)\%([: ]\|$\)'
       let &l:errorformat = '%D(in\ %f),%+G%.%#'
       exe 'make! '.arg
       if !a:bang
@@ -2229,7 +2243,12 @@ function! s:layoutList(A,L,P)
 endfunction
 
 function! s:stylesheetList(A,L,P)
-  return s:completion_filter(rails#app().relglob("public/stylesheets/","**/*",".css"),a:A)
+  let list = rails#app().relglob('public/stylesheets/','**/*','.css')
+  if rails#app().has('sass')
+    call extend(list,rails#app().relglob('public/stylesheets/sass/','**/*','.s?ss'))
+    call s:uniq(list)
+  endif
+  return s:completion_filter(list,a:A)
 endfunction
 
 function! s:javascriptList(A,L,P)
@@ -2560,7 +2579,7 @@ function! s:viewEdit(cmd,...)
     let dir = fnamemodify(rails#app().path(found),':h')
     if !isdirectory(dir)
       if a:0 && a:1 =~ '!'
-        call mkdir(dir)
+        call mkdir(dir,'p')
       else
         return s:error('No such directory')
       endif
@@ -3176,6 +3195,13 @@ function! s:Extract(bang,...) range abort
   if filereadable(out) && !a:bang
     return s:error('E13: File exists (add ! to override)')
   endif
+  if !isdirectory(fnamemodify(out,':h'))
+    if a:bang
+      call mkdir(fnamemodify(out,':h'),'p')
+    else
+      return s:error('No such directory')
+    endif
+  endif
   " No tabs, they'll just complicate things
   if ext =~? '^\%(rhtml\|erb\|dryml\)$'
     let erub1 = '\<\%\s*'
@@ -3510,14 +3536,14 @@ function! s:BufSyntax()
         syn keyword rubyRailsARMethod observe
       endif
       if buffer.type_name('mailer')
-        syn keyword rubyRailsMethod logger attachments
+        syn keyword rubyRailsMethod logger url_for polymorphic_path polymorphic_url
         syn keyword rubyRailsRenderMethod mail render
-        syn keyword rubyRailsControllerMethod default helper helper_attr helper_method
+        syn keyword rubyRailsControllerMethod attachments default helper helper_attr helper_method
       endif
       if buffer.type_name('controller','view','helper')
         syn keyword rubyRailsMethod params request response session headers cookies flash
         syn keyword rubyRailsRenderMethod render
-        syn keyword rubyRailsMethod logger
+        syn keyword rubyRailsMethod logger polymorphic_path polymorphic_url
       endif
       if buffer.type_name('helper','view')
         exe "syn keyword rubyRailsHelperMethod ".s:gsub(s:helpermethods(),'<%(content_for|select)\s+','')
@@ -3535,7 +3561,7 @@ function! s:BufSyntax()
         syn keyword rubyRailsFilterMethod verify
       endif
       if buffer.type_name('db-migration','db-schema')
-        syn keyword rubyRailsMigrationMethod create_table change_table drop_table rename_table add_column rename_column change_column change_column_default remove_column add_index remove_index
+        syn keyword rubyRailsMigrationMethod create_table change_table drop_table rename_table add_column rename_column change_column change_column_default remove_column add_index remove_index execute
       endif
       if buffer.type_name('test')
         if !empty(rails#app().user_assertions())
@@ -3557,6 +3583,7 @@ function! s:BufSyntax()
           syn match   rubyRailsTestControllerMethod  '\.\@<!\<\%(get\|post\|put\|delete\|head\|process\|assigns\)\>'
           syn keyword rubyRailsTestControllerMethod  integrate_views
           syn keyword rubyRailsMethod params request response session flash
+          syn keyword rubyRailsMethod polymorphic_path polymorphic_url
         endif
       endif
       if buffer.type_name('task')
@@ -3615,7 +3642,7 @@ function! s:BufSyntax()
       exe 'syn keyword '.&syntax.'RailsHelperMethod '.s:gsub(s:helpermethods(),'<%(content_for|select)\s+','').' contained containedin=@'.&syntax.'RailsRegions'
       exe 'syn match '.&syntax.'RailsHelperMethod "\<select\>\%(\s*{\|\s*do\>\|\s*(\=\s*&\)\@!" contained containedin=@'.&syntax.'RailsRegions'
       exe 'syn match '.&syntax.'RailsHelperMethod "\<\%(content_for?\=\|current_page?\)" contained containedin=@'.&syntax.'RailsRegions'
-      exe 'syn keyword '.&syntax.'RailsMethod debugger logger contained containedin=@'.&syntax.'RailsRegions'
+      exe 'syn keyword '.&syntax.'RailsMethod debugger logger polymorphic_path polymorphic_url contained containedin=@'.&syntax.'RailsRegions'
       exe 'syn keyword '.&syntax.'RailsMethod params request response session headers cookies flash contained containedin=@'.&syntax.'RailsRegions'
       exe 'syn match '.&syntax.'RailsViewMethod "\.\@<!\<\(h\|html_escape\|u\|url_encode\|controller\)\>" contained containedin=@'.&syntax.'RailsRegions'
       if buffer.type_name('view-partial')
@@ -3760,7 +3787,7 @@ endfunction
 
 function! s:addtostatus(letter,status)
   let status = a:status
-  if status !~ 'rails' && g:rails_statusline
+  if status !~ 'rails' && status !~ '^%!' && g:rails_statusline
     let   status=substitute(status,'\C%'.tolower(a:letter),'%'.tolower(a:letter).'%{rails#statusline()}','')
     if status !~ 'rails'
       let status=substitute(status,'\C%'.toupper(a:letter),'%'.toupper(a:letter).'%{rails#STATUSLINE()}','')
@@ -4144,7 +4171,6 @@ function! s:BufAbbreviations()
       Rabbrev rs[ response
       Rabbrev se[ session
       Rabbrev hd[ headers
-      Rabbrev co[ cookies
       Rabbrev coo[ cookies
       Rabbrev fl[ flash
       Rabbrev rr( render
@@ -4505,7 +4531,7 @@ function! RailsBufInit(path)
     setlocal filetype=eruby
   elseif &ft =~ '^\%(conf\|ruby\)\=$' && expand("%:e") =~ '^\%(rjs\|rxml\|builder\|rake\|mab\)$'
     setlocal filetype=ruby
-  elseif &ft =~ '^\%(conf\|ruby\)\=$' && expand("%:t") =~ '^\%(Rake\|Gem\|Cap\)file$'
+  elseif &ft =~ '^\%(conf\|ruby\)\=$' && expand("%:t") =~ '^\%(\%(Rake\|Gem\|Cap\)file\|Isolate\)$'
     setlocal filetype=ruby
   elseif &ft =~ '^\%(liquid\)\=$' && expand("%:e") == "liquid"
     setlocal filetype=liquid
