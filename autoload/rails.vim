@@ -2479,7 +2479,7 @@ endfunction
 
 function! s:app_migration(file) dict
   let arg = a:file
-  if arg =~ '^0$\|^0\=[#:]'
+  if arg == ''
     let suffix = s:sub(arg,'^0*','')
     if self.has_file('db/schema.rb')
       return 'db/schema.rb'.suffix
@@ -2488,19 +2488,19 @@ function! s:app_migration(file) dict
     else
       return 'db/schema.rb'.suffix
     endif
+  elseif arg == '0'
+    let glob = '*.rb'
   elseif arg =~ '^\d$'
     let glob = '00'.arg.'_*.rb'
   elseif arg =~ '^\d\d$'
     let glob = '0'.arg.'_*.rb'
   elseif arg =~ '^\d\d\d$'
     let glob = ''.arg.'_*.rb'
-  elseif arg == ''
-    let glob = '*.rb'
   else
     let glob = '*'.rails#underscore(arg).'*rb'
   endif
   let files = split(glob(self.path('db/migrate/').glob),"\n")
-  if arg == ''
+  if arg == '0'
     return get(files,-1,'')
   endif
   call map(files,'strpart(v:val,1+strlen(self.path()))')
